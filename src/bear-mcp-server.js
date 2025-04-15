@@ -18,6 +18,12 @@ import {
   initEmbedder,
   retrieveForRAG
 } from './utils.js';
+import { monitorDatabase } from './services/watch-index.js';
+import { createVectorIndex } from './create-index.js';
+
+// Configuration
+const AUTO_WATCH = process.env.BEAR_AUTO_WATCH !== 'false';
+const AUTO_INDEX = process.env.BEAR_AUTO_INDEX !== 'false';
 
 // Initialize dependencies
 async function initialize() {
@@ -34,10 +40,32 @@ async function initialize() {
   }
   
   // Load vector index
-  const indexLoaded = await loadVectorIndex();
-  if (!indexLoaded) {
+  let indexLoaded = await loadVectorIndex();
+  
+  // If index doesn't exist and auto-indexing is enabled, create it
+  if (!indexLoaded && AUTO_INDEX && modelInitialized) {
+    console.error('Vector index not found, automatically creating index...');
+    try {
+      await createVectorIndex();
+      console.error('Index created successfully');
+      // Try loading the index again
+      indexLoaded = await loadVectorIndex();
+    } catch (error) {
+      console.error('Failed to create index automatically:', error.message);
+    }
+  } else if (!indexLoaded) {
     console.error('Warning: Vector index not found, semantic search will not be available');
     console.error('Run "npm run index" to create the vector index');
+  }
+  
+  // Start real-time indexing if enabled
+  if (AUTO_WATCH && indexLoaded && modelInitialized) {
+    console.error('Starting real-time note monitoring...');
+    monitorDatabase().catch(error => {
+      console.error('Error starting monitoring service:', error);
+    });
+  } else if (AUTO_WATCH) {
+    console.error('Real-time monitoring disabled: Missing vector index or embedding model');
   }
   
   return { db, hasSemanticSearch: modelInitialized && indexLoaded };

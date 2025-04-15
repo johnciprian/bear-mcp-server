@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const INDEX_PATH = path.join(__dirname, 'note_vectors');
 
 // Main indexing function
-async function createVectorIndex() {
+export async function createVectorIndex() {
   console.log('Starting to create vector index for Bear Notes...');
   
   // Initialize the embedding model
@@ -91,19 +91,28 @@ async function createVectorIndex() {
     await fs.writeFile(`${INDEX_PATH}.json`, JSON.stringify(noteIdMap));
     
     console.log(`Vector index saved to ${INDEX_PATH}`);
+    return true;
   } catch (error) {
     console.error('Error creating vector index:', error);
+    return false;
   } finally {
     // Close the database connection
     db.close();
   }
 }
 
-// Run the indexing
-createVectorIndex().then(() => {
-  console.log('Indexing complete');
-  process.exit(0);
-}).catch(error => {
-  console.error('Indexing failed:', error);
-  process.exit(1);
-});
+// Run the indexing when the script is called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  createVectorIndex().then((success) => {
+    if (success) {
+      console.log('Indexing complete');
+      process.exit(0);
+    } else {
+      console.error('Indexing failed');
+      process.exit(1);
+    }
+  }).catch(error => {
+    console.error('Indexing failed:', error);
+    process.exit(1);
+  });
+}
